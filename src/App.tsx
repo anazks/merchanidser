@@ -8,8 +8,6 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PurchaseOrders from './pages/PurchaseOrders';
-import Valuations from './pages/Valuations';
-import Leads from './pages/Leads';
 import Profile from './pages/Profile';
 
 function App() {
@@ -57,8 +55,6 @@ function App() {
                         <Route element={<DashboardLayout />}>
                             <Route path="/dashboard" element={<Dashboard />} />
                             <Route path="/purchase-orders" element={<PurchaseOrders />} />
-                            <Route path="/valuations" element={<Valuations />} />
-                            <Route path="/leads" element={<Leads />} />
                             <Route path="/profile" element={<Profile />} />
                         </Route>
                     </Route>

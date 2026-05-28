@@ -89,7 +89,7 @@ const Login = () => {
                         OlaCars Merchandiser
                     </h1>
                     <p className="text-sm font-medium" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                        Purchase Orders & Valuations Portal
+                        Purchase Orders Portal
                     </p>
                 </div>
 
