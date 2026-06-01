@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PurchaseOrder, PurchaseOrderItem } from '../services/mockData';
 import { ArrowLeft, ClipboardList, FileText, Check, ShieldCheck, Clock, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 
 interface PurchaseOrderDetailsProps {
     order: PurchaseOrder;
@@ -25,22 +26,51 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
         setEditableItems(updated);
     };
 
-    // Simulate file upload
-    const handleFileChange = (slot: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    // Helper to format S3/local file paths for display
+    const getFilename = (pathStr: string) => {
+        if (!pathStr) return 'No PDF/Image uploaded';
+        const parts = pathStr.split('/');
+        const filenameWithTimestamp = parts[parts.length - 1];
+        const underscoreIdx = filenameWithTimestamp.indexOf('_');
+        if (underscoreIdx !== -1 && underscoreIdx < 15) {
+            return filenameWithTimestamp.substring(underscoreIdx + 1);
+        }
+        return filenameWithTimestamp;
+    };
+
+    // Upload document to backend
+    const handleFileChange = async (slot: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         setUploadingDoc(slot);
         toast.loading(`Uploading ${file.name}...`, { id: 'details-upload-toast' });
 
-        setTimeout(() => {
+        try {
+            const formData = new FormData();
+            formData.append('document', file);
+
+            const response = await api.post('/api/purchase-order/upload-document', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (response.data && response.data.success) {
+                const uploadedUrl = response.data.data.url;
+                toast.success(`Uploaded ${file.name} successfully!`, { id: 'details-upload-toast' });
+                if (slot === 1) setDoc1Name(uploadedUrl);
+                else if (slot === 2) setDoc2Name(uploadedUrl);
+                else if (slot === 3) setDoc3Name(uploadedUrl);
+            } else {
+                toast.error(response.data?.message || `Failed to upload ${file.name}`, { id: 'details-upload-toast' });
+            }
+        } catch (error: any) {
+            console.error('Error uploading document:', error);
+            toast.error(error.response?.data?.message || error.message || 'Upload failed', { id: 'details-upload-toast' });
+        } finally {
             setUploadingDoc(null);
-            toast.success(`Uploaded ${file.name} successfully!`, { id: 'details-upload-toast' });
-            
-            if (slot === 1) setDoc1Name(file.name);
-            else if (slot === 2) setDoc2Name(file.name);
-            else if (slot === 3) setDoc3Name(file.name);
-        }, 1200);
+        }
     };
 
     // Calculate total order value
@@ -90,15 +120,39 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
                 </div>
             </div>
 
+            {order.backendStatus === 'REJECTED' && (
+                <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-500 rounded-xl flex gap-3 text-xs leading-relaxed animate-fadeIn">
+                    <AlertTriangle size={18} className="flex-shrink-0" />
+                    <div>
+                        <span className="font-bold">This PO was rejected by Financial Admin:</span>
+                        <p className="mt-1 font-mono italic">"{order.rejectionNote || 'No rejection note provided.'}"</p>
+                        <p className="mt-2 text-[10px] opacity-75">You can update the pricing or files and re-submit the PO audit for approval.</p>
+                    </div>
+                </div>
+            )}
+
+            {order.backendStatus === 'APPROVED' && order.approvalNote && (
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 rounded-xl flex gap-3 text-xs leading-relaxed animate-fadeIn">
+                    <ShieldCheck size={18} className="flex-shrink-0" />
+                    <div>
+                        <span className="font-bold">Approval Note from Financial Admin:</span>
+                        <p className="mt-1 font-mono italic">"{order.approvalNote}"</p>
+                    </div>
+                </div>
+            )}
+
             {/* Status Header Banner */}
             <div className="glass-card p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <div 
                         className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                            order.status === 'processed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                            order.backendStatus === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' :
+                            order.backendStatus === 'REJECTED' ? 'bg-rose-500/10 text-rose-500' :
+                            order.backendStatus === 'PENDING_FINANCE_APPROVAL' ? 'bg-sky-500/10 text-sky-500' :
+                            'bg-amber-500/10 text-amber-500'
                         }`}
                     >
-                        {order.status === 'processed' ? <ShieldCheck size={24} /> : <Clock size={24} />}
+                        {order.backendStatus === 'APPROVED' ? <ShieldCheck size={24} /> : <Clock size={24} />}
                     </div>
                     <div>
                         <div className="flex items-center gap-2">
@@ -106,9 +160,15 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
                                 Order {order.id} Audit
                             </h2>
                             <span className={`badge ${
-                                order.status === 'processed' ? 'badge-lime' : 'badge-orange'
+                                order.backendStatus === 'APPROVED' ? 'badge-green' :
+                                order.backendStatus === 'REJECTED' ? 'badge-red' :
+                                order.backendStatus === 'PENDING_FINANCE_APPROVAL' ? 'badge-blue' :
+                                'badge-orange'
                             }`}>
-                                {order.status}
+                                {order.backendStatus === 'PENDING_FINANCE_APPROVAL' ? 'Pending Finance Approval' :
+                                 order.backendStatus === 'APPROVED' ? 'Approved' :
+                                 order.backendStatus === 'REJECTED' ? 'Rejected' :
+                                 'Pending Audit'}
                             </span>
                         </div>
                         <p className="text-xs text-muted mt-0.5">
@@ -212,7 +272,7 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
                                     <div className="flex-1 min-w-0">
                                         <span className="block text-xs font-bold text-main" style={{ color: 'var(--text-main)' }}>1. Supplier Quotation</span>
                                         <span className="block text-[9px] text-dim truncate" style={{ color: 'var(--text-dim)' }}>
-                                            {doc1Name || 'No PDF/Image uploaded'}
+                                            {getFilename(doc1Name)}
                                         </span>
                                     </div>
                                     {doc1Name && <span className="text-emerald-500 text-xs font-bold">✓</span>}
@@ -235,7 +295,7 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
                                     <div className="flex-1 min-w-0">
                                         <span className="block text-xs font-bold text-main" style={{ color: 'var(--text-main)' }}>2. Commercial Invoice</span>
                                         <span className="block text-[9px] text-dim truncate" style={{ color: 'var(--text-dim)' }}>
-                                            {doc2Name || 'No PDF/Image uploaded'}
+                                            {getFilename(doc2Name)}
                                         </span>
                                     </div>
                                     {doc2Name && <span className="text-emerald-500 text-xs font-bold">✓</span>}
@@ -258,7 +318,7 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
                                     <div className="flex-1 min-w-0">
                                         <span className="block text-xs font-bold text-main" style={{ color: 'var(--text-main)' }}>3. Compliance Certificate</span>
                                         <span className="block text-[9px] text-dim truncate" style={{ color: 'var(--text-dim)' }}>
-                                            {doc3Name || 'No PDF/Image uploaded'}
+                                            {getFilename(doc3Name)}
                                         </span>
                                     </div>
                                     {doc3Name && <span className="text-emerald-500 text-xs font-bold">✓</span>}

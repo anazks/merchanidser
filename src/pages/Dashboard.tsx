@@ -21,13 +21,51 @@ import {
     Legend
 } from 'recharts';
 import { useTheme } from '../context/ThemeContext';
+import api from '../services/api';
 
 const Dashboard = () => {
     const { theme } = useTheme();
     const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
 
+    const fetchOrders = async () => {
+        try {
+            const response = await api.get('/api/purchase-order');
+            if (response.data && response.data.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
+                const backendPos = response.data.data;
+                
+                const mappedOrders = backendPos.map((po: any) => {
+                    const uiStatus = ['PENDING_FINANCE_APPROVAL', 'APPROVED', 'REJECTED'].includes(po.status) ? 'processed' : 'pending';
+                    
+                    return {
+                        _id: po._id,
+                        id: po.purchaseOrderNumber || po._id,
+                        supplierName: po.supplier?.name || 'Unknown Supplier',
+                        date: new Date(po.purchaseOrderDate || po.createdAt).toISOString().split('T')[0],
+                        status: uiStatus,
+                        backendStatus: po.status,
+                        rejectionNote: po.rejectionNote || '',
+                        approvalNote: po.approvalNote || '',
+                        items: (po.items || []).map((item: any) => ({
+                            id: item._id,
+                            name: item.itemName,
+                            quantity: item.quantity,
+                            supplierUnitPrice: item.merchandiserPrice !== undefined && item.merchandiserPrice !== null ? item.merchandiserPrice : item.unitPrice || 0
+                        })),
+                        documents: po.documents || []
+                    };
+                });
+                setPurchaseOrders(mappedOrders);
+            } else {
+                setPurchaseOrders(getPurchaseOrders());
+            }
+        } catch (error) {
+            console.error('Error fetching purchase orders for dashboard:', error);
+            setPurchaseOrders(getPurchaseOrders());
+        }
+    };
+
     useEffect(() => {
-        setPurchaseOrders(getPurchaseOrders());
+        fetchOrders();
     }, []);
 
     // Calculate metrics
@@ -215,9 +253,15 @@ const Dashboard = () => {
                                     <td>{po.items.length} items</td>
                                     <td>
                                         <span className={`badge ${
-                                            po.status === 'pending' ? 'badge-orange' : 'badge-green'
+                                            po.backendStatus === 'APPROVED' ? 'badge-green' :
+                                            po.backendStatus === 'REJECTED' ? 'badge-red' :
+                                            po.backendStatus === 'PENDING_FINANCE_APPROVAL' ? 'badge-blue' :
+                                            'badge-orange'
                                         }`}>
-                                            {po.status}
+                                            {po.backendStatus === 'PENDING_FINANCE_APPROVAL' ? 'Pending Finance Approval' :
+                                             po.backendStatus === 'APPROVED' ? 'Approved' :
+                                             po.backendStatus === 'REJECTED' ? 'Rejected' :
+                                             'Pending Audit'}
                                         </span>
                                     </td>
                                 </tr>

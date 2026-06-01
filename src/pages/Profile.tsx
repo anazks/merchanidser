@@ -53,7 +53,7 @@ const Profile = () => {
                     </p>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-white/5 border border-white/10 mt-1">
                         <Shield size={12} className="text-lime" style={{ color: 'var(--brand-lime)' }} />
-                        <span>{role === 'merchandiser' ? 'Merchandise Manager' : 'Lead Buyer'}</span>
+                        <span>{role === 'MERCHENDISE' ? 'Merchandise Manager' : 'Lead Buyer'}</span>
                     </div>
                 </div>
             </div>

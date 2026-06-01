@@ -5,60 +5,63 @@ import toast from 'react-hot-toast';
 import PurchaseOrderDetails from '../components/PurchaseOrderDetails';
 import api from '../services/api';
 
-const PurchaseOrders = () => {
+const PurchaseRequests = () => {
     const [orders, setOrders] = useState<PurchaseOrder[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'all' | 'pending_approval' | 'approved'>('all');
+    const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'rejected'>('all');
 
     // Modal states
     const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-    const fetchOrders = async () => {
+    const fetchRequests = async () => {
         try {
-            const response = await api.get('/api/purchase-order');
+            const response = await api.get('/api/workshop-procurement');
             if (response.data && response.data.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
                 const backendPos = response.data.data;
-                const ordersOnly = backendPos.filter((po: any) => 
-                    ['PENDING_FINANCE_APPROVAL', 'APPROVED', 'DISPOSED'].includes(po.status)
+                
+                // Filter for requests: APPROVED, PENDING_FINANCE_APPROVAL, REJECTED
+                const requestsOnly = backendPos.filter((po: any) => 
+                    ['APPROVED', 'PENDING_FINANCE_APPROVAL', 'REJECTED'].includes(po.status)
                 );
 
-                const mappedOrders = ordersOnly.map((po: any) => {
-                    const uiStatus = po.status === 'PENDING_FINANCE_APPROVAL' ? 'pending_approval' : 'approved';
+                const mappedOrders = requestsOnly.map((po: any) => {
+                    const isRejected = po.status === 'REJECTED';
+                    const uiStatus = isRejected ? 'rejected' : 'pending';
 
                     return {
                         _id: po._id,
-                        id: po.purchaseOrderNumber || po._id,
-                        supplierName: po.supplier?.name || 'Unknown Supplier',
-                        date: new Date(po.purchaseOrderDate || po.createdAt).toISOString().split('T')[0],
+                        id: po.requestNumber || po._id,
+                        supplierName: po.supplier?.name || `Branch: ${po.branch?.name || 'Unknown'}`,
+                        date: new Date(po.createdAt).toISOString().split('T')[0],
                         status: uiStatus,
                         backendStatus: po.status,
                         rejectionNote: po.rejectionNote || '',
                         approvalNote: po.approvalNote || '',
-                        items: (po.items || []).map((item: any) => ({
-                            id: item._id,
-                            name: item.itemName,
-                            quantity: item.quantity,
-                            supplierUnitPrice: item.merchandiserPrice !== undefined && item.merchandiserPrice !== null ? item.merchandiserPrice : item.unitPrice || 0
-                        })),
+                        items: [{
+                            id: po.part?._id || '1',
+                            name: po.part?.partName || 'Unknown Part',
+                            quantity: po.quantity,
+                            supplierUnitPrice: po.merchandiserPrice !== undefined && po.merchandiserPrice !== null ? po.merchandiserPrice : po.part?.unitCost || 0
+                        }],
                         documents: po.documents || []
                     };
                 });
                 setOrders(mappedOrders);
             } else {
-                setOrders(getPurchaseOrders());
+                setOrders([]);
             }
         } catch (error) {
-            console.error('Error fetching purchase orders:', error);
-            setOrders(getPurchaseOrders());
+            console.error('Error fetching purchase requests:', error);
+            setOrders([]);
         }
     };
 
     useEffect(() => {
-        fetchOrders();
+        fetchRequests();
     }, []);
 
-    // Filter POs
+    // Filter Requests
     const filteredOrders = orders.filter(po => {
         const matchesSearch = po.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             po.id.toLowerCase().includes(searchTerm.toLowerCase());
@@ -73,39 +76,34 @@ const PurchaseOrders = () => {
         setIsDetailOpen(true);
     };
 
-    // Calculate total order value for list rendering
+    // Calculate total order value
     const calculateOrderTotal = (itemsList: PurchaseOrderItem[]) => {
         return itemsList.reduce((sum, item) => sum + (item.quantity * item.supplierUnitPrice), 0);
     };
 
-    // Save audited pricing and files back to store (received from child component)
+    // Save audited pricing and files back to backend
     const handleSaveOrderDetails = async (updatedItems: PurchaseOrderItem[], documents: string[]) => {
         if (!selectedOrder) return;
 
         try {
             const payload = {
-                items: updatedItems.map(item => ({
-                    id: item.id,
-                    itemName: item.name,
-                    supplierUnitPrice: item.supplierUnitPrice
-                })),
+                merchandiserPrice: updatedItems[0].supplierUnitPrice,
                 documents
             };
-            const response = await api.put(`/api/purchase-order/${(selectedOrder as any)._id}/audit`, payload);
+            const response = await api.put(`/api/workshop-procurement/${(selectedOrder as any)._id}/audit`, payload);
             if (response.data && response.data.success) {
-                toast.success(`Purchase Order ${selectedOrder.id} pricing has been audited and submitted for approval!`);
-                fetchOrders();
+                toast.success(`Purchase Request ${selectedOrder.id} pricing has been audited and submitted for approval!`);
+                fetchRequests();
                 setIsDetailOpen(false);
                 setSelectedOrder(null);
             } else {
-                toast.error(response.data?.message || 'Failed to save PO audit');
+                toast.error(response.data?.message || 'Failed to save audit');
             }
         } catch (error: any) {
-            console.error('Error saving PO audit:', error);
-            toast.error(error.response?.data?.message || error.message || 'Failed to save PO audit');
+            console.error('Error saving audit:', error);
+            toast.error(error.response?.data?.message || error.message || 'Failed to save audit');
         }
     };
-
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-IN', {
@@ -131,8 +129,8 @@ const PurchaseOrders = () => {
                     {/* Header section */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <h2 className="text-xl font-bold" style={{ color: 'var(--text-main)' }}>Purchase Orders</h2>
-                            <p className="text-xs text-muted">Auditing incoming purchase orders, configure supplier unit prices, and upload supporting billing proofs</p>
+                            <h2 className="text-xl font-bold" style={{ color: 'var(--text-main)' }}>Purchase Requests</h2>
+                            <p className="text-xs text-muted">Auditing incoming purchase requests, configure supplier unit prices, and upload supporting billing proofs</p>
                         </div>
                     </div>
 
@@ -145,7 +143,7 @@ const PurchaseOrders = () => {
                             </span>
                             <input
                                 type="text"
-                                placeholder="Search by supplier or order ID..."
+                                placeholder="Search by supplier or request ID..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="input-field pl-11 w-full"
@@ -161,16 +159,16 @@ const PurchaseOrders = () => {
                                 All ({orders.length})
                             </button>
                             <button
-                                onClick={() => setActiveTab('pending_approval')}
-                                className={`tab-btn ${activeTab === 'pending_approval' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('pending')}
+                                className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`}
                             >
-                                Pending Approval ({orders.filter(po => po.status === 'pending_approval').length})
+                                Pending Audit ({orders.filter(po => po.status === 'pending').length})
                             </button>
                             <button
-                                onClick={() => setActiveTab('approved')}
-                                className={`tab-btn ${activeTab === 'approved' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('rejected')}
+                                className={`tab-btn ${activeTab === 'rejected' ? 'active' : ''}`}
                             >
-                                Approved ({orders.filter(po => po.status === 'approved').length})
+                                Rejected ({orders.filter(po => po.status === 'rejected').length})
                             </button>
                         </div>
                     </div>
@@ -181,7 +179,7 @@ const PurchaseOrders = () => {
                             <table className="data-table">
                                 <thead>
                                     <tr>
-                                        <th>Order ID</th>
+                                        <th>Request ID</th>
                                         <th>Supplier Name</th>
                                         <th>Order Date</th>
                                         <th>Items</th>
@@ -194,7 +192,8 @@ const PurchaseOrders = () => {
                                 <tbody>
                                     {filteredOrders.length > 0 ? (
                                         filteredOrders.map((po) => {
-                                            const poTotal = po.status === 'processed' ? calculateOrderTotal(po.items) : 0;
+                                            const hasProposed = po.items.some(item => item.supplierUnitPrice > 0);
+                                            const poTotal = calculateOrderTotal(po.items);
                                             const docsCount = po.documents.filter(Boolean).length;
                                             return (
                                                 <tr key={po.id}>
@@ -211,7 +210,7 @@ const PurchaseOrders = () => {
                                                         </span>
                                                     </td>
                                                     <td className="font-bold text-main" style={{ color: 'var(--text-main)' }}>
-                                                        {po.status === 'processed' ? formatCurrency(poTotal) : (
+                                                        {hasProposed ? formatCurrency(poTotal) : (
                                                             <span className="text-xs text-amber-500 font-medium">Pending Pricing</span>
                                                         )}
                                                     </td>
@@ -232,7 +231,7 @@ const PurchaseOrders = () => {
                                                         <button
                                                             onClick={() => handleOpenDetail(po)}
                                                             className="p-1.5 rounded-lg bg-white/5 text-muted hover:text-lime hover:bg-lime/10 transition-colors cursor-pointer border-none"
-                                                            title="View order details"
+                                                            title="View request details"
                                                         >
                                                             <Eye size={18} />
                                                         </button>
@@ -243,7 +242,7 @@ const PurchaseOrders = () => {
                                     ) : (
                                         <tr>
                                             <td colSpan={8} className="text-center py-8 text-dim" style={{ color: 'var(--text-dim)' }}>
-                                                No purchase orders match the search or filter settings.
+                                                No purchase requests match the search or filter settings.
                                             </td>
                                         </tr>
                                     )}
@@ -257,5 +256,4 @@ const PurchaseOrders = () => {
     );
 };
 
-export default PurchaseOrders;
-
+export default PurchaseRequests;

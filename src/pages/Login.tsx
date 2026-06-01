@@ -4,6 +4,7 @@ import { Tag, Eye, EyeOff, Loader2, Sun, Moon } from 'lucide-react';
 import { setToken, setUser } from '../utils/auth';
 import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 
 const Login = () => {
     const { theme, toggleTheme } = useTheme();
@@ -19,34 +20,29 @@ const Login = () => {
 
         setIsLoading(true);
 
-        // Simulate network latency
-        setTimeout(() => {
-            setIsLoading(false);
-            
-            // Mock authentication for Merchandiser role only
-            const mockUser = { 
-                id: 'M-001', 
-                email: 'merchandiser@olacars.com', 
-                fullName: 'Vikrant Verma', 
-                role: 'merchandiser' 
-            };
-
-            // Create a mock base64 token representing the user state
-            const payload = JSON.stringify({
-                ...mockUser,
-                exp: Math.floor(Date.now() / 1000) + 3600 * 24 // 24 hours expiry
+        try {
+            const response = await api.post('/api/merchendise/login', {
+                email: email.trim(),
+                password: password
             });
-            const base64Token = btoa(payload);
-            
-            // Replicate standard format header.payload.signature
-            const mockJwt = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${base64Token}.mocksignature`;
 
-            setToken(mockJwt);
-            setUser(mockUser);
-            
-            toast.success(`Welcome back, ${mockUser.fullName}`);
-            navigate('/dashboard', { replace: true });
-        }, 1000);
+            if (response.data && response.data.success) {
+                const { accessToken, user } = response.data;
+                setToken(accessToken);
+                setUser(user);
+                
+                toast.success(`Welcome back, ${user.fullName || 'Merchandiser'}`);
+                navigate('/dashboard', { replace: true });
+            } else {
+                toast.error(response.data?.message || 'Login failed');
+            }
+        } catch (error: any) {
+            console.error('[Login] Error during authentication:', error);
+            const errMsg = error.response?.data?.message || error.message || 'Connection to authentication server failed';
+            toast.error(errMsg);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (

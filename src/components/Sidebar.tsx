@@ -8,7 +8,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Users,
-    Tag
+    Tag,
+    FileText
 } from 'lucide-react';
 import { logout, getUser, getUserRole } from '../utils/auth';
 
@@ -25,6 +26,7 @@ const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
 
     const baseNavItems = [
         { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+        { path: '/purchase-requests', icon: FileText, label: 'Purchase Request' },
         { path: '/purchase-orders', icon: ClipboardList, label: 'Purchase Orders' },
         { path: '/profile', icon: User, label: 'Profile' },
     ];

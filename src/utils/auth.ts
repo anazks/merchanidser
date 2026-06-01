@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 export interface DecodedToken {
     id?: string;
     email?: string;
-    role: 'merchandiser' | 'buyer';
+    role: string;
     fullName?: string;
     exp?: number;
     iat?: number;
@@ -85,10 +85,9 @@ export const isTokenValid = (): boolean => {
     return true;
 };
 
-export const getUserRole = (): 'merchandiser' | 'buyer' | null => {
+export const getUserRole = (): string | null => {
     const decoded = getDecodedToken();
-    const role = decoded?.role ?? null;
-    return role ? (role.toLowerCase() as 'merchandiser' | 'buyer') : null;
+    return decoded?.role ?? null;
 };
 
 export const getUserId = (): string | null => {

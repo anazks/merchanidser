@@ -8,6 +8,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PurchaseOrders from './pages/PurchaseOrders';
+import PurchaseRequests from './pages/PurchaseRequests';
 import Profile from './pages/Profile';
 
 function App() {
@@ -54,6 +55,7 @@ function App() {
                     <Route element={<ProtectedRoute />}>
                         <Route element={<DashboardLayout />}>
                             <Route path="/dashboard" element={<Dashboard />} />
+                            <Route path="/purchase-requests" element={<PurchaseRequests />} />
                             <Route path="/purchase-orders" element={<PurchaseOrders />} />
                             <Route path="/profile" element={<Profile />} />
                         </Route>

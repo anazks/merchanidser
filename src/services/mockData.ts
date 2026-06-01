@@ -14,6 +14,9 @@ export interface PurchaseOrder {
     status: 'pending' | 'processed';
     items: PurchaseOrderItem[];
     documents: string[]; // Up to 3 file names
+    backendStatus?: string;
+    rejectionNote?: string;
+    approvalNote?: string;
 }
 
 export interface ValuationRequest {
