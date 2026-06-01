@@ -11,7 +11,7 @@ export interface PurchaseOrder {
     id: string;
     supplierName: string;
     date: string;
-    status: 'pending' | 'processed';
+    status: 'pending' | 'processed' | 'pending_approval' | 'approved' | 'rejected';
     items: PurchaseOrderItem[];
     documents: string[]; // Up to 3 file names
     backendStatus?: string;

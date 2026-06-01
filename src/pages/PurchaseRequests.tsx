@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPurchaseOrders, PurchaseOrder, PurchaseOrderItem } from '../services/mockData';
+import { PurchaseOrder, PurchaseOrderItem } from '../services/mockData';
 import { Eye, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PurchaseOrderDetails from '../components/PurchaseOrderDetails';
