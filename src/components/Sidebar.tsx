@@ -29,13 +29,18 @@ interface MenuItem {
     subItems?: SubItem[];
 }
 
+interface UserProfile {
+    fullName?: string;
+    avatarUrl?: string;
+}
+
 const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [openSection, setOpenSection] = useState<string | null>(null);
 
-    const user = getUser();
-    const displayName = (user?.fullName as string) || 'Merchandiser';
+    const user = getUser() as UserProfile | null;
+    const displayName = user?.fullName || 'Merchandiser';
     const roleName = getUserRole() || 'Merchandise Manager';
 
     const menuItems: MenuItem[] = [
