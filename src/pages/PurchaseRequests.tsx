@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PurchaseOrder, PurchaseOrderItem } from '../services/mockData';
-import { Eye, Search } from 'lucide-react';
+import { Eye, Search, Truck, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PurchaseOrderDetails from '../components/PurchaseOrderDetails';
 import api from '../services/api';
@@ -20,14 +20,17 @@ const PurchaseRequests = () => {
             if (response.data && response.data.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
                 const backendPos = response.data.data;
                 
-                // Filter for requests: APPROVED, PENDING_FINANCE_APPROVAL, REJECTED
+                // Filter for requests visible to merchandiser
                 const requestsOnly = backendPos.filter((po: any) => 
-                    ['APPROVED', 'PENDING_FINANCE_APPROVAL', 'REJECTED'].includes(po.status)
+                    ['APPROVED', 'PENDING_FINANCE_APPROVAL', 'REJECTED', 'COST_APPROVED', 'IN_TRANSIT', 'RECEIVED'].includes(po.status)
                 );
 
                 const mappedOrders = requestsOnly.map((po: any) => {
                     const isRejected = po.status === 'REJECTED';
-                    const uiStatus = isRejected ? 'rejected' : 'pending';
+                    const isShipped = po.status === 'IN_TRANSIT';
+                    const isReceived = po.status === 'RECEIVED';
+                    const isCostApproved = po.status === 'COST_APPROVED';
+                    const uiStatus = isRejected ? 'rejected' : (isShipped || isReceived || isCostApproved) ? 'shipped' : 'pending';
 
                     return {
                         _id: po._id,
@@ -216,25 +219,51 @@ const PurchaseRequests = () => {
                                                     </td>
                                                     <td>
                                                         <span className={`badge ${
+                                                            po.backendStatus === 'COST_APPROVED' ? 'badge-green' :
+                                                            po.backendStatus === 'IN_TRANSIT' ? 'badge-blue' :
+                                                            po.backendStatus === 'RECEIVED' ? 'badge-green' :
                                                             po.backendStatus === 'APPROVED' ? 'badge-green' :
                                                             po.backendStatus === 'REJECTED' ? 'badge-red' :
                                                             po.backendStatus === 'PENDING_FINANCE_APPROVAL' ? 'badge-blue' :
                                                             'badge-orange'
                                                         }`}>
                                                             {po.backendStatus === 'PENDING_FINANCE_APPROVAL' ? 'Pending Finance Approval' :
+                                                             po.backendStatus === 'COST_APPROVED' ? 'Cost Approved' :
+                                                             po.backendStatus === 'IN_TRANSIT' ? 'In Transit' :
+                                                             po.backendStatus === 'RECEIVED' ? 'Received' :
                                                              po.backendStatus === 'APPROVED' ? 'Approved' :
                                                              po.backendStatus === 'REJECTED' ? 'Rejected' :
                                                              'Pending Audit'}
                                                         </span>
                                                     </td>
                                                     <td className="text-right">
-                                                        <button
-                                                            onClick={() => handleOpenDetail(po)}
-                                                            className="p-1.5 rounded-lg bg-white/5 text-muted hover:text-lime hover:bg-lime/10 transition-colors cursor-pointer border-none"
-                                                            title="View request details"
-                                                        >
-                                                            <Eye size={18} />
-                                                        </button>
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {po.backendStatus === 'COST_APPROVED' && (
+                                                                <button
+                                                                    onClick={async (e) => {
+                                                                        e.stopPropagation();
+                                                                        try {
+                                                                            await api.put(`/api/workshop-procurement/${po._id}/ship`);
+                                                                            toast.success('Request marked as shipped!');
+                                                                            fetchRequests();
+                                                                        } catch (err: any) {
+                                                                            toast.error(err.response?.data?.message || 'Failed to ship');
+                                                                        }
+                                                                    }}
+                                                                    className="px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-400 hover:bg-sky-500 hover:text-white transition-all text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border-none cursor-pointer"
+                                                                >
+                                                                    <Truck size={14} />
+                                                                    Ship
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleOpenDetail(po)}
+                                                                className="p-1.5 rounded-lg bg-white/5 text-muted hover:text-lime hover:bg-lime/10 transition-colors cursor-pointer border-none"
+                                                                title="View request details"
+                                                            >
+                                                                <Eye size={18} />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
