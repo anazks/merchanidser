@@ -8,6 +8,7 @@ export interface PurchaseOrderItem {
 }
 
 export interface PurchaseOrder {
+    _id?: string;
     id: string;
     supplierName: string;
     date: string;
