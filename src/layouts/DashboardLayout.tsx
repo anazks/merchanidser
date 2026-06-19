@@ -1,11 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopBar from '../components/TopBar';
+import api from '../services/api';
 
 const DashboardLayout = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+    useEffect(() => {
+        const fetchUserProfile = async () => {
+            try {
+                const response = await api.get('/api/user/profile');
+                if (response.data && response.data.success && response.data.user) {
+                    localStorage.setItem('merch_user', JSON.stringify(response.data.user));
+                }
+            } catch (error) {
+                console.error('[DashboardLayout] Error updating user profile:', error);
+            }
+        };
+        fetchUserProfile();
+    }, []);
 
     const toggleSidebar = () => {
         setIsSidebarCollapsed(!isSidebarCollapsed);

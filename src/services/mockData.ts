@@ -18,6 +18,12 @@ export interface PurchaseOrder {
     backendStatus?: string;
     rejectionNote?: string;
     approvalNote?: string;
+    supplierDetails?: {
+        name: string;
+        email: string;
+        phone: string;
+        address: string;
+    };
 }
 
 export interface ValuationRequest {

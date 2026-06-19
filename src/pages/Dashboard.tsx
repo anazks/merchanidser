@@ -39,7 +39,7 @@ const Dashboard = () => {
                     return {
                         _id: po._id,
                         id: po.purchaseOrderNumber || po._id,
-                        supplierName: po.supplier?.name || 'Unknown Supplier',
+                        supplierName: po.supplier?.name || po.supplierDetails?.name || 'Unknown Supplier',
                         date: new Date(po.purchaseOrderDate || po.createdAt).toISOString().split('T')[0],
                         status: uiStatus,
                         backendStatus: po.status,

@@ -29,7 +29,7 @@ const PurchaseOrders = () => {
                     return {
                         _id: po._id,
                         id: po.purchaseOrderNumber || po._id,
-                        supplierName: po.supplier?.name || 'Unknown Supplier',
+                        supplierName: po.supplier?.name || po.supplierDetails?.name || 'Unknown Supplier',
                         date: new Date(po.purchaseOrderDate || po.createdAt).toISOString().split('T')[0],
                         status: uiStatus,
                         backendStatus: po.status,
@@ -41,7 +41,8 @@ const PurchaseOrders = () => {
                             quantity: item.quantity,
                             supplierUnitPrice: item.merchandiserPrice !== undefined && item.merchandiserPrice !== null ? item.merchandiserPrice : item.unitPrice || 0
                         })),
-                        documents: po.documents || []
+                        documents: po.documents || [],
+                        supplierDetails: po.supplierDetails
                     };
                 });
                 setOrders(mappedOrders);
@@ -78,8 +79,11 @@ const PurchaseOrders = () => {
         return itemsList.reduce((sum, item) => sum + (item.quantity * item.supplierUnitPrice), 0);
     };
 
-    // Save audited pricing and files back to store (received from child component)
-    const handleSaveOrderDetails = async (updatedItems: PurchaseOrderItem[], documents: string[]) => {
+    const handleSaveOrderDetails = async (
+        updatedItems: PurchaseOrderItem[], 
+        documents: string[], 
+        supplierDetails?: { name: string; email: string; phone: string; address: string }
+    ) => {
         if (!selectedOrder) return;
 
         try {
@@ -89,7 +93,8 @@ const PurchaseOrders = () => {
                     itemName: item.name,
                     supplierUnitPrice: item.supplierUnitPrice
                 })),
-                documents
+                documents,
+                supplierDetails
             };
             const response = await api.put(`/api/purchase-order/${(selectedOrder as any)._id}/audit`, payload);
             if (response.data && response.data.success) {

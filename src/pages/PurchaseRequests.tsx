@@ -9,6 +9,12 @@ const PurchaseRequests = () => {
     const [orders, setOrders] = useState<PurchaseOrder[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'rejected'>('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, activeTab]);
 
     // Modal states
     const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
@@ -16,7 +22,9 @@ const PurchaseRequests = () => {
 
     const fetchRequests = async () => {
         try {
-            const response = await api.get('/api/workshop-procurement');
+            const response = await api.get('/api/workshop-procurement', {
+                params: { limit: 1000 }
+            });
             if (response.data && response.data.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
                 const backendPos = response.data.data;
                 
@@ -35,7 +43,7 @@ const PurchaseRequests = () => {
                     return {
                         _id: po._id,
                         id: po.requestNumber || po._id,
-                        supplierName: po.supplier?.name || `Branch: ${po.branch?.name || 'Unknown'}`,
+                        supplierName: po.supplier?.name || po.supplierDetails?.name || `Branch: ${po.branch?.name || 'Unknown'}`,
                         date: new Date(po.createdAt).toISOString().split('T')[0],
                         status: uiStatus,
                         backendStatus: po.status,
@@ -47,7 +55,8 @@ const PurchaseRequests = () => {
                             quantity: po.quantity,
                             supplierUnitPrice: po.merchandiserPrice !== undefined && po.merchandiserPrice !== null ? po.merchandiserPrice : po.part?.unitCost || 0
                         }],
-                        documents: po.documents || []
+                        documents: po.documents || [],
+                        supplierDetails: po.supplierDetails
                     };
                 });
                 setOrders(mappedOrders);
@@ -73,6 +82,12 @@ const PurchaseRequests = () => {
         return matchesSearch && po.status === activeTab;
     });
 
+    const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+    const paginatedOrders = filteredOrders.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
     // Opening detail modal
     const handleOpenDetail = (po: PurchaseOrder) => {
         setSelectedOrder(po);
@@ -85,13 +100,18 @@ const PurchaseRequests = () => {
     };
 
     // Save audited pricing and files back to backend
-    const handleSaveOrderDetails = async (updatedItems: PurchaseOrderItem[], documents: string[]) => {
+    const handleSaveOrderDetails = async (
+        updatedItems: PurchaseOrderItem[], 
+        documents: string[], 
+        supplierDetails?: { name: string; email: string; phone: string; address: string }
+    ) => {
         if (!selectedOrder) return;
 
         try {
             const payload = {
                 merchandiserPrice: updatedItems[0].supplierUnitPrice,
-                documents
+                documents,
+                supplierDetails
             };
             const response = await api.put(`/api/workshop-procurement/${(selectedOrder as any)._id}/audit`, payload);
             if (response.data && response.data.success) {
@@ -183,7 +203,7 @@ const PurchaseRequests = () => {
                                 <thead>
                                     <tr>
                                         <th>Request ID</th>
-                                        <th>Supplier Name</th>
+                                        <th>Supplier Details</th>
                                         <th>Order Date</th>
                                         <th>Items</th>
                                         <th>Billing Files</th>
@@ -193,16 +213,28 @@ const PurchaseRequests = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredOrders.length > 0 ? (
-                                        filteredOrders.map((po) => {
+                                    {paginatedOrders.length > 0 ? (
+                                        paginatedOrders.map((po) => {
                                             const hasProposed = po.items.some(item => item.supplierUnitPrice > 0);
                                             const poTotal = calculateOrderTotal(po.items);
                                             const docsCount = po.documents.filter(Boolean).length;
                                             return (
                                                 <tr key={po.id}>
                                                     <td className="font-mono text-xs font-bold text-lime" style={{ color: 'var(--brand-lime)' }}>{po.id}</td>
-                                                    <td className="font-semibold text-main" style={{ color: 'var(--text-main)' }}>
-                                                        {po.supplierName}
+                                                    <td className="text-xs">
+                                                        <div className="font-semibold text-main" style={{ color: 'var(--text-main)' }}>
+                                                            {po.supplierDetails?.name || po.supplierName}
+                                                        </div>
+                                                        {po.supplierDetails && (
+                                                            <div className="text-[10px] text-muted space-y-0.5 mt-1" style={{ color: 'var(--text-muted)' }}>
+                                                                {(po.supplierDetails.email || po.supplierDetails.phone) && (
+                                                                    <div>{po.supplierDetails.email || 'N/A'} | {po.supplierDetails.phone || 'N/A'}</div>
+                                                                )}
+                                                                {po.supplierDetails.address && (
+                                                                    <div className="truncate max-w-[200px]">{po.supplierDetails.address}</div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td>{po.date}</td>
                                                     <td>{po.items.length} positions</td>
@@ -278,6 +310,52 @@ const PurchaseRequests = () => {
                                 </tbody>
                             </table>
                         </div>
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}>
+                                <span className="text-xs text-muted" style={{ color: 'var(--text-dim)' }}>
+                                    Showing <span className="font-semibold text-main" style={{ color: 'var(--text-main)' }}>{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                                    <span className="font-semibold text-main" style={{ color: 'var(--text-main)' }}>
+                                        {Math.min(currentPage * itemsPerPage, filteredOrders.length)}
+                                    </span>{' '}
+                                    of <span className="font-semibold text-main" style={{ color: 'var(--text-main)' }}>{filteredOrders.length}</span> entries
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 border border-white/10 hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed border-none"
+                                        style={{ color: 'var(--text-main)' }}
+                                    >
+                                        Previous
+                                    </button>
+                                    {Array.from({ length: totalPages }, (_, index) => {
+                                        const pageNumber = index + 1;
+                                        return (
+                                            <button
+                                                key={pageNumber}
+                                                onClick={() => setCurrentPage(pageNumber)}
+                                                className={`w-8 h-8 rounded-xl text-xs font-bold transition-all border-none cursor-pointer flex items-center justify-center ${
+                                                    currentPage === pageNumber
+                                                        ? 'bg-[#C8E600] text-black shadow-lg shadow-[#C8E600]/20'
+                                                        : 'bg-white/5 text-muted hover:bg-white/10 hover:text-main'
+                                                }`}
+                                                style={currentPage === pageNumber ? {} : { color: 'var(--text-dim)' }}
+                                            >
+                                                {pageNumber}
+                                            </button>
+                                        );
+                                    })}
+                                    <button
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 border border-white/10 hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed border-none"
+                                        style={{ color: 'var(--text-main)' }}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </>
             )}

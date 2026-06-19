@@ -3,11 +3,12 @@ import { PurchaseOrder, PurchaseOrderItem } from '../services/mockData';
 import { ArrowLeft, ClipboardList, FileText, Check, ShieldCheck, Clock, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { getUser } from '../utils/auth';
 
 interface PurchaseOrderDetailsProps {
     order: PurchaseOrder;
     onClose: () => void;
-    onSave: (updatedItems: PurchaseOrderItem[], documents: string[]) => void;
+    onSave: (updatedItems: PurchaseOrderItem[], documents: string[], supplierDetails?: { name: string; email: string; phone: string; address: string }) => void;
 }
 
 const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsProps) => {
@@ -18,6 +19,25 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
     const [doc2Name, setDoc2Name] = useState(order.documents?.[1] || '');
     const [doc3Name, setDoc3Name] = useState(order.documents?.[2] || '');
     const [uploadingDoc, setUploadingDoc] = useState<number | null>(null);
+    const [supplierDetails, setSupplierDetails] = useState(() => {
+        if (order.supplierDetails && order.supplierDetails.name) {
+            return {
+                name: order.supplierDetails.name,
+                email: order.supplierDetails.email || '',
+                phone: order.supplierDetails.phone || '',
+                address: order.supplierDetails.address || ''
+            };
+        }
+        const user = getUser();
+        const merchSupplier = user?.supplier as any;
+        return {
+            name: merchSupplier?.name || order.supplierName || '',
+            email: merchSupplier?.email || '',
+            phone: merchSupplier?.phone || '',
+            address: merchSupplier?.address || ''
+        };
+    });
+    const [isEditingSupplier, setIsEditingSupplier] = useState(false);
 
     // Handle unit price edits
     const handlePriceChange = (index: number, val: number) => {
@@ -92,7 +112,7 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
             return;
         }
 
-        onSave(editableItems, [doc1Name, doc2Name, doc3Name]);
+        onSave(editableItems, [doc1Name, doc2Name, doc3Name], supplierDetails);
     };
 
     const formatCurrency = (value: number) => {
@@ -192,23 +212,87 @@ const PurchaseOrderDetails = ({ order, onClose, onSave }: PurchaseOrderDetailsPr
                 <div className="lg:col-span-2 space-y-6">
                     {/* General Info Card */}
                     <div className="glass-card p-5 space-y-4">
-                        <h3 className="text-sm font-bold border-b pb-3 text-main" style={{ borderColor: 'var(--border-main)', color: 'var(--text-main)' }}>
-                            Purchase Request Information
-                        </h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs text-muted">
-                            <div>
-                                <span className="block text-[9px] uppercase font-bold text-dim mb-0.5" style={{ color: 'var(--text-dim)' }}>Supplier Code</span>
-                                <span className="font-medium text-main" style={{ color: 'var(--text-main)' }}>SPL-{order.supplierName.substring(0,3).toUpperCase()}</span>
-                            </div>
-                            <div>
-                                <span className="block text-[9px] uppercase font-bold text-dim mb-0.5" style={{ color: 'var(--text-dim)' }}>Audit Specialist</span>
-                                <span className="font-medium text-main" style={{ color: 'var(--text-main)' }}>Vikrant Verma (Merchandiser)</span>
-                            </div>
-                            <div>
-                                <span className="block text-[9px] uppercase font-bold text-dim mb-0.5" style={{ color: 'var(--text-dim)' }}>Verification State</span>
-                                <span className="font-medium text-main" style={{ color: 'var(--text-main)' }}>{order.status === 'processed' ? 'Audited' : 'Pending Review'}</span>
-                            </div>
+                        <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-main)' }}>
+                            <h3 className="text-sm font-bold text-main" style={{ color: 'var(--text-main)' }}>
+                                Purchase Request Information
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setIsEditingSupplier(!isEditingSupplier)}
+                                className="text-xs font-semibold text-lime underline cursor-pointer bg-transparent border-none"
+                                style={{ color: 'var(--brand-lime)' }}
+                            >
+                                {isEditingSupplier ? 'Cancel' : 'Change'}
+                            </button>
                         </div>
+                        
+                        {isEditingSupplier ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] uppercase font-bold text-dim" style={{ color: 'var(--text-dim)' }}>Supplier Name</label>
+                                    <input
+                                        type="text"
+                                        value={supplierDetails.name}
+                                        onChange={(e) => setSupplierDetails({ ...supplierDetails, name: e.target.value })}
+                                        className="w-full px-3 py-2 rounded-xl outline-none text-xs focus:ring-1 focus:ring-lime"
+                                        style={{ background: 'var(--bg-input)', border: '1px solid var(--border-main)', color: 'var(--text-main)' }}
+                                        placeholder="Supplier Name"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] uppercase font-bold text-dim" style={{ color: 'var(--text-dim)' }}>Supplier Email</label>
+                                    <input
+                                        type="email"
+                                        value={supplierDetails.email}
+                                        onChange={(e) => setSupplierDetails({ ...supplierDetails, email: e.target.value })}
+                                        className="w-full px-3 py-2 rounded-xl outline-none text-xs focus:ring-1 focus:ring-lime"
+                                        style={{ background: 'var(--bg-input)', border: '1px solid var(--border-main)', color: 'var(--text-main)' }}
+                                        placeholder="Supplier Email"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] uppercase font-bold text-dim" style={{ color: 'var(--text-dim)' }}>Supplier Phone</label>
+                                    <input
+                                        type="text"
+                                        value={supplierDetails.phone}
+                                        onChange={(e) => setSupplierDetails({ ...supplierDetails, phone: e.target.value })}
+                                        className="w-full px-3 py-2 rounded-xl outline-none text-xs focus:ring-1 focus:ring-lime"
+                                        style={{ background: 'var(--bg-input)', border: '1px solid var(--border-main)', color: 'var(--text-main)' }}
+                                        placeholder="Supplier Phone"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-[9px] uppercase font-bold text-dim" style={{ color: 'var(--text-dim)' }}>Supplier Address</label>
+                                    <input
+                                        type="text"
+                                        value={supplierDetails.address}
+                                        onChange={(e) => setSupplierDetails({ ...supplierDetails, address: e.target.value })}
+                                        className="w-full px-3 py-2 rounded-xl outline-none text-xs focus:ring-1 focus:ring-lime"
+                                        style={{ background: 'var(--bg-input)', border: '1px solid var(--border-main)', color: 'var(--text-main)' }}
+                                        placeholder="Supplier Address"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-muted">
+                                <div>
+                                    <span className="block text-[9px] uppercase font-bold text-dim mb-0.5" style={{ color: 'var(--text-dim)' }}>Supplier Name</span>
+                                    <span className="font-semibold text-main text-xs" style={{ color: 'var(--text-main)' }}>{supplierDetails.name || '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-[9px] uppercase font-bold text-dim mb-0.5" style={{ color: 'var(--text-dim)' }}>Supplier Email</span>
+                                    <span className="font-semibold text-main text-xs" style={{ color: 'var(--text-main)' }}>{supplierDetails.email || '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-[9px] uppercase font-bold text-dim mb-0.5" style={{ color: 'var(--text-dim)' }}>Supplier Phone</span>
+                                    <span className="font-semibold text-main text-xs" style={{ color: 'var(--text-main)' }}>{supplierDetails.phone || '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-[9px] uppercase font-bold text-dim mb-0.5" style={{ color: 'var(--text-dim)' }}>Supplier Address</span>
+                                    <span className="font-semibold text-main text-xs" style={{ color: 'var(--text-main)' }}>{supplierDetails.address || '—'}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Pricing Config Card */}
